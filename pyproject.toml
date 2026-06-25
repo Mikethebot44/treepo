@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lean-treepo"
+version = "0.1.0"
+description = "TRL TreePO/GRPO replication scaffold for Lean theorem proving with Kimina rewards."
+requires-python = ">=3.11"
+dependencies = [
+    "accelerate>=1.12.0",
+    "bitsandbytes>=0.48.0",
+    "datasets>=4.4.0",
+    "huggingface-hub>=1.0.0",
+    "matplotlib>=3.9.0",
+    "numpy>=1.26.0",
+    "pandas>=2.2.0",
+    "peft>=0.18.0",
+    "requests>=2.32.0",
+    "safetensors>=0.5.0",
+    "torch>=2.8.0",
+    "transformers>=5.0.0",
+    "trl>=1.6.0",
+    "wandb>=0.19.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3.0", "ruff>=0.8.0"]
+tracking = ["wandb>=0.19.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
