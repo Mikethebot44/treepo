@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import os
 from dataclasses import dataclass
-from pathlib import Path
 
 METHODS = ("grpo", "grpo_tree_sampling", "treepo_fixed_init", "treepo_more_init")
 TREE_METHODS = ("grpo_tree_sampling", "treepo_fixed_init", "treepo_more_init")
@@ -146,7 +145,8 @@ class TrainConfig:
 
 
 def _derive_output_dir(output_root: str, method: str) -> str:
-    return str(Path(output_root) / method)
+    cleaned_root = output_root.rstrip("/\\")
+    return f"{cleaned_root}/{method}"
 
 
 def _derive_hub_model_id(prefix: str | None, method: str) -> str | None:

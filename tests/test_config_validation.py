@@ -1,4 +1,4 @@
-from lean_treepo.config import TrainConfig
+from lean_treepo.config import TrainConfig, config_from_args
 
 
 def make_config(**overrides):
@@ -92,3 +92,11 @@ def test_tree_method_requires_positive_segment_length() -> None:
         assert "TREE_SEGMENT_LENGTH" in str(exc)
     else:
         raise AssertionError("Expected ValueError")
+
+
+def test_blank_output_dir_derives_method_specific_path(monkeypatch) -> None:
+    monkeypatch.setenv("KIMINA_BASE_URL", "http://kimina")
+    monkeypatch.setenv("OUTPUT_ROOT", "/workspace/outputs/treepo-runs")
+    monkeypatch.setenv("OUTPUT_DIR", "")
+    config = config_from_args(["--method", "treepo_fixed_init", "--train-size", "1", "--val-size", "0", "--test-size", "0", "--num-generations", "2"])
+    assert config.output_dir == "/workspace/outputs/treepo-runs/treepo_fixed_init"

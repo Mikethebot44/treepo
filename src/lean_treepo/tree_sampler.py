@@ -5,6 +5,7 @@ import random
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
+import json
 
 
 @dataclass
@@ -109,6 +110,13 @@ def _clone_for_branch(parent: TreeNode, child_id: str) -> TreeNode:
 
 def _decode_completion(tokenizer: Any, token_ids: list[int]) -> str:
     return tokenizer.decode(token_ids, skip_special_tokens=True) if token_ids else ""
+
+
+def _prompt_key(prompt: Any) -> str:
+    try:
+        return json.dumps(prompt, sort_keys=True, ensure_ascii=False)
+    except TypeError:
+        return repr(prompt)
 
 
 def _generate_segment_hf(
@@ -252,13 +260,23 @@ def make_tree_rollout_func(config: Any):
     def rollout_func(prompts: list[Any], trainer: Any) -> dict[str, Any]:
         tokenizer = trainer.processing_class
         rng = random.Random(config.seed + int(getattr(trainer.state, "global_step", 0)))
-        all_prompt_ids: list[list[int]] = []
-        all_completion_ids: list[list[int]] = []
-        all_logprobs: list[list[float]] = []
-        all_tree_metadata: list[dict[str, Any]] = []
+        all_prompt_ids: list[list[int] | None] = [None] * len(prompts)
+        all_completion_ids: list[list[int] | None] = [None] * len(prompts)
+        all_logprobs: list[list[float] | None] = [None] * len(prompts)
+        all_tree_metadata: list[dict[str, Any] | None] = [None] * len(prompts)
         stats: list[TreeSamplingStats] = []
 
-        for prompt_index, prompt in enumerate(prompts):
+        grouped_indices: list[list[int]] = []
+        group_by_key: dict[str, list[int]] = {}
+        for idx, prompt in enumerate(prompts):
+            key = _prompt_key(prompt)
+            if key not in group_by_key:
+                group_by_key[key] = []
+                grouped_indices.append(group_by_key[key])
+            group_by_key[key].append(idx)
+
+        for group_index, prompt_indices in enumerate(grouped_indices):
+            prompt = prompts[prompt_indices[0]]
             prompt_ids = _tokenize_prompt(prompt, tokenizer)
 
             def generate(input_ids: list[int]) -> tuple[list[int], list[float]]:
@@ -277,7 +295,7 @@ def make_tree_rollout_func(config: Any):
                 tokenizer=tokenizer,
                 generate_segment=generate,
                 method=config.method,
-                max_width=config.num_generations,
+                max_width=len(prompt_indices),
                 max_depth=config.tree_max_depth,
                 segment_length=config.tree_segment_length,
                 fixed_step_width=config.tree_fixed_step_width,
@@ -288,13 +306,14 @@ def make_tree_rollout_func(config: Any):
                 rng=rng,
             )
             stats.append(tree_stats)
-            for rollout_index, leaf in enumerate(leaves):
-                all_prompt_ids.append(prompt_ids)
-                all_completion_ids.append(leaf.completion_ids[: config.max_completion_length])
-                all_logprobs.append(leaf.logprobs[: config.max_completion_length])
-                all_tree_metadata.append(
+            for rollout_index, (row_index, leaf) in enumerate(zip(prompt_indices, leaves, strict=False)):
+                all_prompt_ids[row_index] = prompt_ids
+                all_completion_ids[row_index] = leaf.completion_ids[: config.max_completion_length]
+                all_logprobs[row_index] = leaf.logprobs[: config.max_completion_length]
+                all_tree_metadata[row_index] = (
                     {
-                        "prompt_index": prompt_index,
+                        "prompt_index": group_index,
+                        "row_index": row_index,
                         "rollout_index": rollout_index,
                         "tree_id": leaf.node_id,
                         "parent_id": leaf.parent_id,
@@ -314,10 +333,10 @@ def make_tree_rollout_func(config: Any):
             trainer._metrics["train"]["tree/trajps"].append(sum(s.trajps for s in stats) / len(stats))
 
         return {
-            "prompt_ids": all_prompt_ids,
-            "completion_ids": all_completion_ids,
-            "logprobs": all_logprobs,
-            "tree_metadata": all_tree_metadata,
+            "prompt_ids": [ids or [] for ids in all_prompt_ids],
+            "completion_ids": [ids or [] for ids in all_completion_ids],
+            "logprobs": [logps or [] for logps in all_logprobs],
+            "tree_metadata": [metadata or {} for metadata in all_tree_metadata],
         }
 
     return rollout_func

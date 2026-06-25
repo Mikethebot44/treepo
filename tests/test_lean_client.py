@@ -13,6 +13,11 @@ def test_parse_failure_response() -> None:
     assert "type mismatch" in parsed.feedback
 
 
+def test_parse_no_error_entry_as_success() -> None:
+    parsed = parse_kimina_response({"results": [{"custom_id": "ok-1", "messages": [], "diagnostics": []}]})
+    assert parsed.success
+
+
 def test_auth_header_is_bearer() -> None:
     client = KiminaLeanClient("https://kimina.example", api_key="abc")
     assert client.headers()["Authorization"] == "Bearer abc"

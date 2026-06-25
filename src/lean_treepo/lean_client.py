@@ -69,9 +69,23 @@ def _entry_success(entry: dict[str, Any]) -> bool:
     status = entry.get("status")
     if isinstance(status, str):
         return status.lower() in {"ok", "success", "valid", "verified", "passed", "complete"}
-    if entry.get("error") or entry.get("errors") or entry.get("diagnostics") or entry.get("messages"):
+    for key in ("error", "errors", "diagnostics", "messages"):
+        value = entry.get(key)
+        if isinstance(value, str) and value.strip():
+            return False
+        if isinstance(value, list) and value:
+            return False
+        if isinstance(value, dict) and value:
+            return False
+        if value and not isinstance(value, (str, list, dict)):
+            return False
+    if any(key in entry for key in ("error", "errors", "diagnostics", "messages")):
+        return True
+    if "custom_id" in entry:
+        return True
+    if entry:
         return False
-    return False
+    return True
 
 
 def _entry_feedback(entry: dict[str, Any], success: bool) -> str:
